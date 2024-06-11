@@ -9,6 +9,7 @@ from aiogram.filters.state import State, StatesGroup
 from dotenv import dotenv_values
 from pymongo import MongoClient
 from datetime import datetime
+from bson import ObjectId
 
 from src.models import Room, ChooseEditEnum, AnswerEnum
 from src.utils import get_content_file, validate_code, validate_host
@@ -238,7 +239,7 @@ async def process_edit_field(message: types.Message, state: FSMContext, field_na
 
     data = await state.get_data()
     room_id = data['room_id']
-    rooms_collection.update_one({'_id': room_id}, {'$set': {field_name: message.text}})
+    rooms_collection.update_one({'_id': ObjectId(room_id)}, {'$set': {field_name: message.text}})
 
     await state.clear()
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
@@ -303,7 +304,7 @@ async def process_delete(message: types.Message, state: FSMContext):
         logger.info(f"Комната: {message.text} с индификатором {room_id} была удалена пользователем {message.from_user.id}")
 
     await state.clear()
-    await message.answer(AnswerEnum.room_delite.value, reply_markup=types.ReplyKeyboardRemove())
+    await message.answer(AnswerEnum.room_delite.value, reply_markup=default_keyboard)
 
 
 @dp.message(Command("update"))

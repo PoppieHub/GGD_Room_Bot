@@ -35,7 +35,7 @@ class ChooseEditEnum(Enum):
     code = "Код"
     host = "Хоста"
     map = "Карту"
-    game_mode = "game_mode"
+    game_mode = "Режим"
 
 
 class AnswerEnum(Enum):
