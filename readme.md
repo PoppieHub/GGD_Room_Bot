@@ -2,6 +2,8 @@
 
 ----
 
+##### _Действующая версия бота:_ [https://t.me/GGD_Room_Bot](https://t.me/GGD_Room_Bot)
+
 ### Содержание:
 1. [Инструкция по развертыванию Docker и базовых команд](./readme/dockerCommands.md)
 2. [Базовая информация по приложению](./readme/basicInfo.md)
