@@ -150,6 +150,11 @@ async def process_map(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
         return
 
+    # Проверка на соответствие предложенным значениям клавиатуры
+    if message.text not in [button.value for button in Map]:
+        await message.answer(AnswerEnum.error_edit.value, reply_markup=map_keyboard)
+        return
+
     await state.update_data(map=message.text)
     await message.answer(AnswerEnum.choose_game_mode.value, reply_markup=game_mode_keyboard)
     await state.set_state(RoomState.game_mode)
@@ -158,6 +163,11 @@ async def process_map(message: types.Message, state: FSMContext):
 @dp.message(RoomState.game_mode)
 async def process_game_mode(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
+        return
+
+    # Проверка на соответствие предложенным значениям клавиатуры
+    if message.text not in [button.value for button in GameMode]:
+        await message.answer(AnswerEnum.error_edit.value, reply_markup=game_mode_keyboard)
         return
 
     data = await state.get_data()
@@ -225,46 +235,99 @@ async def edit_option(message: types.Message, state: FSMContext):
         await message.answer(AnswerEnum.not_found.value)
         return
 
-    await message.answer(f"Установите новое значение для поля '{option}':", reply_markup=cancel_keyboard)
+    if option == ChooseEditEnum.map.value:
+        await message.answer(f"Установите новую карту:", reply_markup=map_keyboard)
+    elif option == ChooseEditEnum.game_mode.value:
+        await message.answer(f"Установите новый режим:", reply_markup=game_mode_keyboard)
+    else:
+        await message.answer(f"Установите новое значение для поля '{option}':", reply_markup=cancel_keyboard)
+
     await state.set_state(state_dict[option])
 
 
-async def process_edit_field(message: types.Message, state: FSMContext, field_name: str, validation_func=None):
+@dp.message(RoomState.edit_code)
+async def edit_code(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
         return
 
-    if validation_func and not validation_func(message.text):
-        await message.answer(AnswerEnum.error_edit.value)
+    if not validate_code(message.text):
+        await message.answer(AnswerEnum.error_code.value)
         return
 
     data = await state.get_data()
-    room_id = data['room_id']
-    rooms_collection.update_one({'_id': ObjectId(room_id)}, {'$set': {field_name: message.text}})
+    room_id = ObjectId(data['room_id'])
+    rooms_collection.update_one({'_id': room_id}, {'$set': {'code': message.text}})
+
+    await reschedule_auto_delete(room_id)
 
     await state.clear()
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
 
-    logger.info(f"Поле {field_name} комнаты {room_id} было изменено пользователем {message.from_user.id} на {message.text}")
-
-
-@dp.message(RoomState.edit_code)
-async def process_edit_code(message: types.Message, state: FSMContext):
-    await process_edit_field(message, state, 'code', validate_code)
+    logger.info(f"Поле код комнаты {room_id} было изменено пользователем {message.from_user.id} на {message.text}")
 
 
 @dp.message(RoomState.edit_host)
-async def process_edit_host(message: types.Message, state: FSMContext):
-    await process_edit_field(message, state, 'host', validate_host)
+async def edit_host(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    if not validate_host(message.text):
+        await message.answer(AnswerEnum.error_host.value)
+        return
+
+    data = await state.get_data()
+    room_id = ObjectId(data['room_id'])
+    rooms_collection.update_one({'_id': room_id}, {'$set': {'host': message.text}})
+
+    await reschedule_auto_delete(room_id)
+
+    await state.clear()
+    await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
+
+    logger.info(f"Поле хост комнаты {room_id} было изменено пользователем {message.from_user.id} на {message.text}")
 
 
 @dp.message(RoomState.edit_map)
-async def process_edit_map(message: types.Message, state: FSMContext):
-    await process_edit_field(message, state, 'map')
+async def edit_map(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    if message.text not in [button.value for button in Map]:
+        await message.answer(AnswerEnum.error_edit.value, reply_markup=map_keyboard)
+        return
+
+
+    data = await state.get_data()
+    room_id = ObjectId(data['room_id'])
+    rooms_collection.update_one({'_id': room_id}, {'$set': {'map': message.text}})
+
+    await reschedule_auto_delete(room_id)
+
+    await state.clear()
+    await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
+
+    logger.info(f"Поле карта комнаты {room_id} было изменено пользователем {message.from_user.id} на {message.text}")
 
 
 @dp.message(RoomState.edit_game_mode)
-async def process_edit_game_mode(message: types.Message, state: FSMContext):
-    await process_edit_field(message, state, 'game_mode')
+async def edit_game_mode(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    if message.text not in [button.value for button in GameMode]:
+        await message.answer(AnswerEnum.error_edit.value, reply_markup=game_mode_keyboard)
+        return
+
+    data = await state.get_data()
+    room_id = ObjectId(data['room_id'])
+    rooms_collection.update_one({'_id': room_id}, {'$set': {'game_mode': message.text}})
+
+    await reschedule_auto_delete(room_id)
+
+    await state.clear()
+    await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
+
+    logger.info(f"Поле режим комнаты {room_id} было изменено пользователем {message.from_user.id} на {message.text}")
 
 
 @dp.message(RoomState.confirm_delete)
@@ -462,10 +525,10 @@ dp.message.register(process_map, RoomState.map)
 dp.message.register(process_game_mode, RoomState.game_mode)
 dp.message.register(confirm_delete, RoomState.confirm_delete)
 dp.message.register(edit_option, RoomState.edit_option)
-dp.message.register(process_edit_code, RoomState.edit_code)
-dp.message.register(process_edit_host, RoomState.edit_host)
-dp.message.register(process_edit_map, RoomState.edit_map)
-dp.message.register(process_edit_game_mode, RoomState.edit_game_mode)
+dp.message.register(edit_code, RoomState.edit_code)
+dp.message.register(edit_host, RoomState.edit_host)
+dp.message.register(edit_map, RoomState.edit_map)
+dp.message.register(edit_game_mode, RoomState.edit_game_mode)
 dp.message.register(process_update_room, RoomState.update)
 
 
