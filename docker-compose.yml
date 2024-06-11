@@ -1,0 +1,36 @@
+version: '3.9'
+services:
+  ggd_bot:
+    container_name: ggd_bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - ggd_bot_db
+    links:
+      - ggd_bot_db
+    environment:
+      - MONGO_HOST=ggd_bot_db
+    restart: always
+    networks:
+      - botnet
+      - appnet
+  ggd_bot_db:
+    container_name: ggd_bot_db
+    image: mongo
+    volumes:
+      - ./data:/data/db
+    restart: always
+    networks:
+      - appnet
+
+networks:
+  botnet:
+    name: botnet
+    driver: bridge
+  appnet:
+    name: appnet
+    driver: bridge

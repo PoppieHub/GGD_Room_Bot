@@ -1,0 +1,15 @@
+.venv
+venv/
+.idea
+idea/
+data
+data/
+.env
+bot.log
+__pycache__
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride

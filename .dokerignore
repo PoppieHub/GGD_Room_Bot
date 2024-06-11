@@ -1,0 +1,13 @@
+.venv
+venv/
+.gitignore
+.git
+.idea
+idea/
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+bot.log
+__pycache__
