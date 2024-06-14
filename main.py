@@ -344,7 +344,7 @@ async def confirm_delete(message: types.Message, state: FSMContext):
             cancel_auto_delete(room_id)  # Отмена задачи авто-удаления
             rooms_collection.delete_one({'_id': room_id})
 
-        await message.answer(AnswerEnum.room_delite.value, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer(AnswerEnum.room_delite_plus.value, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
         await message.answer(AnswerEnum.choose_code.value, reply_markup=cancel_keyboard)
         await state.set_state(RoomState.code)
         logger.info(f"Комната пользователя {message.from_user.id} была удалена пользователем")
@@ -445,7 +445,7 @@ async def list_rooms(message: types.Message):
     rooms = rooms_collection.find()
 
     if rooms_count == 0:
-        await message.answer(AnswerEnum.not_found.value)
+        await message.answer(AnswerEnum.not_found_rooms.value, parse_mode="HTML")
         return
 
     output = "<b>Румы, где ты можешь поиграть:</b>\n\n"
