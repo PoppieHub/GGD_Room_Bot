@@ -46,9 +46,9 @@ async def send_warning_and_delete(bot: Bot, room_id, delay, rooms_collection):
             await send_notification(
                 bot,
                 owner_id,
-                f"⏳ <b>Предупреждение об удалении комнаты</b> ⏳\n\n"
+                f"⏳ <b>Предупреждение об удалении</b> ⏳\n\n"
                 f"Ваша комната с кодом <code>{code}</code> будет автоматически удалена через {NOTIFY_TIME / 60} минут.\n\n"
-                f"Если хотите продлить срок действия комнаты, используйте команду <code>/update</code>."
+                f"Если хотите продлить срок действия комнаты, используйте команду /update"
             )
         await asyncio.sleep(NOTIFY_TIME)
     else:
