@@ -14,6 +14,8 @@ from bson import ObjectId
 from src.models import Room, ChooseEditEnum, AnswerEnum
 from src.utils import get_content_file, validate_code, validate_host
 from src.keyboards import *
+from src.tasks import LIFE_TIME, auto_delete_tasks, schedule_auto_delete, \
+    reschedule_auto_delete, cancel_auto_delete, restore_auto_deletion_tasks
 
 # Настройка логгирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -35,12 +37,6 @@ dp = Dispatcher(storage=storage)
 mongo_client = MongoClient("mongodb://ggd_bot_db:27017/")
 db = mongo_client['ggd']
 rooms_collection = db['rooms']
-
-LIFE_TIME = 10
-NOTIFY_TIME = 5
-
-# Для хранения задач на авто-удаление
-auto_delete_tasks = {}
 
 
 class RoomState(StatesGroup):
@@ -70,97 +66,6 @@ async def is_press_cancel(message: types.Message, state: FSMContext) -> bool:
         await cancel(message, state)
 
         return True
-
-
-# Функция для отправки уведомления пользователю
-async def send_notification(user_id, message, parse_mode=ParseMode.HTML):
-    try:
-        await bot.send_message(user_id, message, parse_mode=parse_mode)
-    except Exception as e:
-        logger.error(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
-
-
-# Функция для автоматического удаления комнаты
-async def auto_delete_room(room_id):
-    room = rooms_collection.find_one({'_id': room_id})
-    if room:
-        owner_id = room['owner_id']
-        code = room['code']
-
-        rooms_collection.delete_one({'_id': room_id})
-        auto_delete_tasks.pop(room_id, None)
-
-        logger.info(f"Комната {room_id} была удалена автоматически")
-
-        await send_notification(
-            owner_id,
-            f"🔔 <b>Уведомление об удалении комнаты</b> 🔔\n\n"
-            f"Ваша комната с кодом <code>{code}</code> была автоматически удалена из-за истечения времени.\n\n"
-            f"Не поняли, как это произошло? Ознакомьтесь с разделами /help и /rules о команде <code>/update</code>."
-        )
-
-
-# Функция для отправки предупреждения и последующего удаления комнаты
-async def send_warning_and_delete(room_id, delay):
-    if delay > NOTIFY_TIME:
-        await asyncio.sleep(delay - NOTIFY_TIME)
-        room = rooms_collection.find_one({'_id': room_id})
-        if room:
-            owner_id = room['owner_id']
-            code = room['code']
-            await send_notification(
-                owner_id,
-                f"⏳ <b>Предупреждение об удалении комнаты</b> ⏳\n\n"
-                f"Ваша комната с кодом <code>{code}</code> будет автоматически удалена через {NOTIFY_TIME / 60} минут.\n\n"
-                f"Если хотите продлить срок действия комнаты, используйте команду <code>/update</code>."
-            )
-        await asyncio.sleep(NOTIFY_TIME)
-    else:
-        await asyncio.sleep(delay)
-
-    await auto_delete_room(room_id)
-
-
-# Функция для планирования авто-удаления
-async def schedule_auto_delete(room_id, delay):
-    logger.info(f"Запланировано удаление комнаты {room_id} через {delay} секунд")
-    await send_warning_and_delete(room_id, delay)
-
-
-#  Функция для отмены авто-удаления
-def cancel_auto_delete(room_id):
-    task = auto_delete_tasks.pop(room_id, None)
-    if task:
-        task.cancel()
-        logger.info(f"Авто-удаление комнаты {room_id} была отменена, т.к пользователь сам удалил")
-
-
-# Функция для перепланирования авто-удаления
-async def reschedule_auto_delete(room_id):
-    cancel_auto_delete(room_id)
-    task = asyncio.create_task(schedule_auto_delete(room_id, LIFE_TIME))
-    auto_delete_tasks[room_id] = task
-    logger.info(f"Авто-удаление комнаты {room_id} была перепланирована, т.к пользователь обновил время жизни")
-
-
-# Функция для восстановления задач авто-удаления
-async def restore_auto_deletion_tasks():
-    current_time = datetime.now()
-    rooms = rooms_collection.find()
-    logger.info("Восстановление задач авто-удаления при запуске")
-
-    for room in rooms:
-        created_at = room['created_at']
-        elapsed_time = (current_time - created_at).total_seconds()
-        remaining_time = LIFE_TIME - elapsed_time
-
-        if remaining_time <= 0:
-            rooms_collection.delete_one({'_id': room['_id']})
-            logger.info(f"Комната {room['_id']} была удалена из-за истечения времени, после перезапуска")
-        else:
-            task = asyncio.create_task(schedule_auto_delete(room['_id'], remaining_time))
-            auto_delete_tasks[room['_id']] = task
-            logger.info(f"Восстановлено удаление комнаты {room['_id']} через {remaining_time} секунд")
 
 
 # Обработчики для добавления комнаты
@@ -231,7 +136,7 @@ async def process_game_mode(message: types.Message, state: FSMContext):
     room_id = result.inserted_id
 
     # Планирование авто-удаления
-    task = asyncio.create_task(schedule_auto_delete(room_id, LIFE_TIME))
+    task = asyncio.create_task(schedule_auto_delete(bot, room_id, LIFE_TIME, rooms_collection))
     auto_delete_tasks[room_id] = task
 
     logger.info(f"Комната: {room.code} с индификаторм: {room_id} была добавлена пользователем {message.from_user.id}")
@@ -305,7 +210,7 @@ async def edit_code(message: types.Message, state: FSMContext):
     room_id = ObjectId(data['room_id'])
     rooms_collection.update_one({'_id': room_id}, {'$set': {'code': message.text}})
 
-    await reschedule_auto_delete(room_id)
+    await reschedule_auto_delete(bot, room_id, rooms_collection)
 
     await state.clear()
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
@@ -326,7 +231,7 @@ async def edit_host(message: types.Message, state: FSMContext):
     room_id = ObjectId(data['room_id'])
     rooms_collection.update_one({'_id': room_id}, {'$set': {'host': message.text}})
 
-    await reschedule_auto_delete(room_id)
+    await reschedule_auto_delete(bot, room_id, rooms_collection)
 
     await state.clear()
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
@@ -348,7 +253,7 @@ async def edit_map(message: types.Message, state: FSMContext):
     room_id = ObjectId(data['room_id'])
     rooms_collection.update_one({'_id': room_id}, {'$set': {'map': message.text}})
 
-    await reschedule_auto_delete(room_id)
+    await reschedule_auto_delete(bot, room_id, rooms_collection)
 
     await state.clear()
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
@@ -369,7 +274,7 @@ async def edit_game_mode(message: types.Message, state: FSMContext):
     room_id = ObjectId(data['room_id'])
     rooms_collection.update_one({'_id': room_id}, {'$set': {'game_mode': message.text}})
 
-    await reschedule_auto_delete(room_id)
+    await reschedule_auto_delete(bot, room_id, rooms_collection)
 
     await state.clear()
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard)
@@ -452,7 +357,7 @@ async def process_update_room(message: types.Message, state: FSMContext):
     room_id = room['_id']
 
     # Перепланирование авто-удаления
-    await reschedule_auto_delete(room_id)
+    await reschedule_auto_delete(bot, room_id, rooms_collection)
 
     await state.clear()
     await message.answer(f"Время жизни комнаты с кодом <code>{message.text}</code> было обновлено.", parse_mode="HTML", reply_markup=default_keyboard)
@@ -582,7 +487,7 @@ dp.message.register(process_update_room, RoomState.update)
 # Запуск бота
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    await restore_auto_deletion_tasks() # Восстановить отслеживания при запуске
+    await restore_auto_deletion_tasks(bot, rooms_collection) # Восстановить отслеживания при запуске
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
