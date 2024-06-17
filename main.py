@@ -36,7 +36,8 @@ mongo_client = MongoClient("mongodb://ggd_bot_db:27017/")
 db = mongo_client['ggd']
 rooms_collection = db['rooms']
 
-LIFE_TIME = 60 * 60 * 2
+LIFE_TIME = 10
+NOTIFY_TIME = 5
 
 # Для хранения задач на авто-удаление
 auto_delete_tasks = {}
@@ -71,13 +72,59 @@ async def is_press_cancel(message: types.Message, state: FSMContext) -> bool:
         return True
 
 
+# Функция для отправки уведомления пользователю
+async def send_notification(user_id, message, parse_mode=ParseMode.HTML):
+    try:
+        await bot.send_message(user_id, message, parse_mode=parse_mode)
+    except Exception as e:
+        logger.error(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
+
+
+# Функция для автоматического удаления комнаты
+async def auto_delete_room(room_id):
+    room = rooms_collection.find_one({'_id': room_id})
+    if room:
+        owner_id = room['owner_id']
+        code = room['code']
+
+        rooms_collection.delete_one({'_id': room_id})
+        auto_delete_tasks.pop(room_id, None)
+
+        logger.info(f"Комната {room_id} была удалена автоматически")
+
+        await send_notification(
+            owner_id,
+            f"🔔 <b>Уведомление об удалении комнаты</b> 🔔\n\n"
+            f"Ваша комната с кодом <code>{code}</code> была автоматически удалена из-за истечения времени.\n\n"
+            f"Не поняли, как это произошло? Ознакомьтесь с разделами /help и /rules о команде <code>/update</code>."
+        )
+
+
+# Функция для отправки предупреждения и последующего удаления комнаты
+async def send_warning_and_delete(room_id, delay):
+    if delay > NOTIFY_TIME:
+        await asyncio.sleep(delay - NOTIFY_TIME)
+        room = rooms_collection.find_one({'_id': room_id})
+        if room:
+            owner_id = room['owner_id']
+            code = room['code']
+            await send_notification(
+                owner_id,
+                f"⏳ <b>Предупреждение об удалении комнаты</b> ⏳\n\n"
+                f"Ваша комната с кодом <code>{code}</code> будет автоматически удалена через {NOTIFY_TIME / 60} минут.\n\n"
+                f"Если хотите продлить срок действия комнаты, используйте команду <code>/update</code>."
+            )
+        await asyncio.sleep(NOTIFY_TIME)
+    else:
+        await asyncio.sleep(delay)
+
+    await auto_delete_room(room_id)
+
+
 # Функция для планирования авто-удаления
 async def schedule_auto_delete(room_id, delay):
     logger.info(f"Запланировано удаление комнаты {room_id} через {delay} секунд")
-    await asyncio.sleep(delay)
-    rooms_collection.delete_one({'_id': room_id})
-    auto_delete_tasks.pop(room_id, None)
-    logger.info(f"Комната {room_id} была удалена автоматически")
+    await send_warning_and_delete(room_id, delay)
 
 
 #  Функция для отмены авто-удаления
