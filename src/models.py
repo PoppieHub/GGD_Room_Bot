@@ -14,7 +14,6 @@ class Map(Enum):
     NEXUS_COLONY = "Колония Нексус"
     BLACK_SWAN = "Черный Лебедь"
     SS_MOTHER_GOOSE = "К.К. Матушка Гусыня"
-    THE_LOUNGE = "Гостиная"
     OTHER = "Разные"
 
 
