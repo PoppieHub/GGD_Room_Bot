@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 LIFE_TIME = 60 * 60 * 2
 NOTIFY_TIME = 60 * 5
 
-
 # Для хранения задач на авто-удаление
 auto_delete_tasks = {}
 
