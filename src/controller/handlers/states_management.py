@@ -5,10 +5,10 @@ from aiogram.fsm.context import FSMContext
 from bson import ObjectId
 from datetime import datetime
 
-from src.controller.handlers.states import RoomState
-from src.models import Room, ChooseEditEnum, AnswerEnum, Map, GameMode
+from src.controller.handlers.states import RoomState, AdminState
+from src.models import Room, ChooseEditEnum, AnswerEnum, Map, GameMode, Admin
 from src.keyboards import default_keyboard, cancel_keyboard, map_keyboard, game_mode_keyboard
-from src.config import dp, rooms_collection, logger, bot
+from src.config import dp, rooms_collection, logger, bot, admins_collection, users_collection
 from src.utils import validate_code, validate_host
 from src.tasks import LIFE_TIME, auto_delete_tasks, schedule_auto_delete, \
     reschedule_auto_delete, cancel_auto_delete
@@ -308,3 +308,98 @@ async def process_update_room(message: types.Message, state: FSMContext):
     await message.answer(f"Время жизни комнаты с кодом <code>{message.text}</code> было обновлено.", parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
 
     logger.info(f"Время жизни комнаты {message.text} с индификатором {room_id} было обновлено пользователем {message.from_user.id}")
+
+
+@dp.message(AdminState.add_admin)
+async def process_add_admin(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    if not message.text.isdigit():
+        await message.reply("Пожалуйста, отправьте корректный id пользователя.")
+        await state.set_state(AdminState.add_admin)
+        return
+
+    admin = Admin(
+        user_id=int(message.text)
+    )
+
+    if admins_collection.find_one({'user_id': admin.user_id}):
+        await message.answer("Этот пользователь уже является администратором.", reply_markup=default_keyboard)
+    else:
+        admins_collection.insert_one(admin.to_dict())
+        await message.answer(f"Пользователь с id <code>{admin.user_id}</code> назначен администратором.",
+                             parse_mode=ParseMode.HTML,
+                             reply_markup=default_keyboard)
+    await state.clear()
+
+
+async def remove_admin(user_id: int):
+    result = admins_collection.delete_one({'user_id': user_id})
+    return result.deleted_count > 0
+
+
+@dp.message(AdminState.del_admin)
+async def process_remove_admin(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    if not message.text.isdigit():
+        await message.reply("Пожалуйста, отправьте корректный id пользователя.")
+        await state.set_state(AdminState.del_admin)
+        return
+
+    admin = Admin(
+        user_id=int(message.text)
+    )
+
+    if await remove_admin(admin.user_id):
+        await message.reply(f"Пользователь с id <code>{admin.user_id}</code> удален из администраторов.",
+                            reply_markup=default_keyboard,
+                            parse_mode=ParseMode.HTML)
+    else:
+        await message.reply(f"Пользователь с id <code>{admin.user_id}</code> не найден в списке администраторов.",
+                            reply_markup=default_keyboard,
+                            parse_mode=ParseMode.HTML)
+    await state.clear()
+
+
+@dp.message(AdminState.delete_room)
+async def process_admin_delete_room(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    room = rooms_collection.find_one({'code': message.text})
+
+    if room:
+        room_id = room['_id']
+        cancel_auto_delete(room_id)  # Отмена задачи авто-удаления
+        rooms_collection.delete_one({'_id': room_id})
+        logger.info(f"Комната: {message.text} с индификатором {room_id} была удалена пользователем {message.from_user.id}")
+    else:
+        await message.answer(AnswerEnum.invalid_option.value, parse_mode=ParseMode.HTML)
+        await state.set_state(RoomState.delete)
+        return
+
+    await state.clear()
+    await message.answer(AnswerEnum.room_delite.value, reply_markup=default_keyboard, parse_mode=ParseMode.HTML)
+
+
+@dp.message(AdminState.broadcast_text)
+async def process_broadcast_text(message: types.Message, state: FSMContext):
+    if await is_press_cancel(message, state):
+        return
+
+    if not message.text:
+        await message.answer("Вы не указали текст для отправки, отправьте снова", reply_markup=default_keyboard)
+        await state.set_state(AdminState.broadcast_text)
+        return
+
+    # Отправляем всем пользователям, которые зарегистрировались в боте
+    for user in users_collection.find():
+        chat_id = user['chat_id']
+        await bot.send_message(chat_id, message.text)
+
+    await state.clear()
+    await message.reply("Сообщения были успешно отправлены всем пользователям бота", reply_markup=default_keyboard)
+

@@ -55,6 +55,7 @@ class AnswerEnum(Enum):
     room_delite = "Комната удалена."
     room_delite_plus = "Комната удалена.\n\nТеперь вы можете добавить новую."
     invalid_option = "Пожалуйста, выберите один из предложенных вариантов или нажмите 'Отмена'."
+    you_dont_have_root = "У вас нет прав для использования этой команды."
 
 
 class Room:
@@ -85,4 +86,20 @@ class Room:
             game_mode=GameMode(data['game_mode']),
             owner_id=data['owner_id'],
             created_at=data['created_at']
+        )
+
+
+class Admin:
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+
+    def to_dict(self):
+        return {
+            'user_id': self.user_id
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            user_id=data['user_id']
         )

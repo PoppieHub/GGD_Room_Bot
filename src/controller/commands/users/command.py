@@ -3,9 +3,9 @@ from aiogram.enums import ParseMode
 from aiogram import types, F
 from aiogram.fsm.context import FSMContext
 
-from src.config import dp, rooms_collection
+from src.config import dp, rooms_collection, users_collection
 from src.controller.handlers.states import RoomState
-from src.keyboards import default_keyboard, cancel_keyboard,create_keyboard
+from src.keyboards import default_keyboard, cancel_keyboard, create_keyboard
 from src.utils import get_content_file
 from src.models import Room, AnswerEnum
 
@@ -13,7 +13,17 @@ from src.models import Room, AnswerEnum
 @dp.message(Command("start"))
 @dp.message(CommandStart(deep_link=True))
 async def start(message: types.Message):
+    user_id = message.from_user.id
+    user_data = users_collection.find_one({"user_id": user_id})
+
     await message.answer(await get_content_file('start'), parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
+
+    # Добавляем пользователя в словарь
+    if user_data is None:
+        users_collection.insert_one({
+            'username': message.from_user.username,
+            'chat_id': message.chat.id
+        })
 
 
 @dp.message(Command("help"))

@@ -15,3 +15,10 @@ class RoomState(StatesGroup):
     edit_map = State()
     edit_game_mode = State()
     update = State()
+
+
+class AdminState(StatesGroup):
+    add_admin = State()
+    del_admin = State()
+    delete_room = State()
+    broadcast_text = State()

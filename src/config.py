@@ -18,6 +18,7 @@ logger.addHandler(file_handler)
 
 # Инициализация токена
 TOKEN = dotenv_values(".env")["API_TOKEN"]
+ADMIN_ID = dotenv_values(".env")["ADMIN_ID"]
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -25,3 +26,5 @@ dp = Dispatcher(storage=storage)
 mongo_client = MongoClient("mongodb://ggd_bot_db:27017/")
 db = mongo_client['ggd']
 rooms_collection = db['rooms']
+admins_collection = db['admins_tg']
+users_collection = db['users']
