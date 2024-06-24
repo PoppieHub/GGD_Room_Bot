@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   ggd_bot:
-    container_name: ggd_bot
+    # container_name: ggd_bot
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,7 +19,7 @@ services:
       - botnet
       - appnet
   ggd_bot_db:
-    container_name: ggd_bot_db
+    # container_name: ggd_bot_db
     image: mongo
     volumes:
       - ./data:/data/db
