@@ -14,7 +14,7 @@ from src.models import Room, AnswerEnum
 @dp.message(CommandStart(deep_link=True))
 async def start(message: types.Message):
     user_id = message.from_user.id
-    user_data = users_collection.find_one({"user_id": user_id})
+    user_data = users_collection.find_one({"chat_id": user_id})
 
     await message.answer(await get_content_file('start'), parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
 
