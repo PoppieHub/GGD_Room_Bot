@@ -3,27 +3,18 @@ from aiogram.enums import ParseMode
 from aiogram import types, F
 from aiogram.fsm.context import FSMContext
 
-from src.config import dp, rooms_collection, users_collection
+from src.config import dp, rooms_collection
 from src.controller.handlers.states import RoomState
 from src.keyboards import default_keyboard, cancel_keyboard, create_keyboard
-from src.utils import get_content_file
+from src.utils import get_content_file, get_user, get_chat
 from src.models import Room, AnswerEnum
 
 
 @dp.message(Command("start"))
 @dp.message(CommandStart(deep_link=True))
 async def start(message: types.Message):
-    user_id = message.from_user.id
-    user_data = users_collection.find_one({"chat_id": user_id})
-
     await message.answer(await get_content_file('start'), parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
-
-    # Добавляем пользователя в словарь
-    if user_data is None:
-        users_collection.insert_one({
-            'username': message.from_user.username,
-            'chat_id': message.chat.id
-        })
+    await get_chat(message.chat.id)
 
 
 @dp.message(Command("help"))
@@ -48,31 +39,34 @@ async def list_rooms_text(message: types.Message):
 
 
 async def list_rooms(message: types.Message):
-    rooms_count = rooms_collection.count_documents({})
-    rooms = rooms_collection.find()
+    rooms_count = await rooms_collection.count_documents({})
 
     if rooms_count == 0:
         await message.answer(AnswerEnum.not_found_rooms.value, parse_mode=ParseMode.HTML)
         return
 
     output = "<b>Румы, где ты можешь поиграть:</b>\n\n"
-    for i, room_data in enumerate(rooms, start=1):
+
+    i = 1
+    async for room_data in rooms_collection.find():
         room = Room.from_dict(room_data)
         output += (
             f"                           ╭    🚀  {room.map.value}\n"
             f"{i:<3} <code>{room.code}</code>       --  👑    {room.host}\n"
             f"                           ╰   🎲   {room.game_mode.value}\n\n\n"
         )
+        i += 1
 
     output += "Приятной игры 🙂\n\n <span class='tg-spoiler'>И не будь абобой 😉</span>"
 
     await message.answer(output, parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
+    await get_chat(message.chat.id)
 
 
 @dp.message(Command("add"))
 async def add_room(message: types.Message, state: FSMContext):
-    user_id = str(message.from_user.id)
-    user_room = rooms_collection.find_one({'owner_id': user_id})
+    user = await get_user(message.from_user.id)
+    user_room = await rooms_collection.find_one({'owner': user.to_dict()})
 
     if user_room:
         await message.answer(f"У вас уже есть комната с кодом <code>{user_room['code']}</code>.\nХотите удалить её перед добавлением новой?",
@@ -87,8 +81,10 @@ async def add_room(message: types.Message, state: FSMContext):
 
 @dp.message(Command("del"))
 async def delete_room(message: types.Message, state: FSMContext):
-    user_id = str(message.from_user.id)
-    user_rooms = list(rooms_collection.find({'owner_id': user_id}))
+    user = await get_user(message.from_user.id)
+    user_rooms_cursor = rooms_collection.find({'owner': user.to_dict()})
+
+    user_rooms = await user_rooms_cursor.to_list(length=None)
 
     if not user_rooms:
         await message.answer(AnswerEnum.not_found.value, parse_mode=ParseMode.HTML)
@@ -107,8 +103,10 @@ async def delete_room(message: types.Message, state: FSMContext):
 
 @dp.message(Command("edit"))
 async def edit_room(message: types.Message, state: FSMContext):
-    user_id = str(message.from_user.id)
-    user_rooms = list(rooms_collection.find({'owner_id': user_id}))
+    user = await get_user(message.from_user.id)
+    user_rooms_cursor = rooms_collection.find({'owner': user.to_dict()})
+
+    user_rooms = await user_rooms_cursor.to_list(length=None)
 
     if not user_rooms:
         await message.answer(AnswerEnum.not_found.value, parse_mode=ParseMode.HTML)
@@ -127,8 +125,10 @@ async def edit_room(message: types.Message, state: FSMContext):
 
 @dp.message(Command("update"))
 async def update_room(message: types.Message, state: FSMContext):
-    user_id = str(message.from_user.id)
-    user_rooms = list(rooms_collection.find({'owner_id': user_id}))
+    user = await get_user(message.from_user.id)
+    user_rooms_cursor = rooms_collection.find({'owner': user.to_dict()})
+
+    user_rooms = await user_rooms_cursor.to_list(length=None)
 
     if not user_rooms:
         await message.answer(AnswerEnum.not_found.value, parse_mode=ParseMode.HTML)

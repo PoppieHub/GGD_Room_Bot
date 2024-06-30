@@ -2,7 +2,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import dotenv_values
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
 
 # Настройка логгирования
@@ -23,8 +23,9 @@ bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-mongo_client = MongoClient("mongodb://ggd_bot_db:27017/")
+mongo_client = AsyncIOMotorClient(dotenv_values(".env")["MONGO_CLIENT"])
 db = mongo_client['ggd']
+
 rooms_collection = db['rooms']
-admins_collection = db['admins_tg']
 users_collection = db['users']
+chats_collection = db['chats']

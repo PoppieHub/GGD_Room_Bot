@@ -6,12 +6,13 @@ from bson import ObjectId
 from datetime import datetime
 
 from src.controller.handlers.states import RoomState, AdminState
-from src.models import Room, ChooseEditEnum, AnswerEnum, Map, GameMode, Admin
+from src.models import Room, ChooseEditEnum, AnswerEnum, Map, GameMode, Chat, User
 from src.keyboards import default_keyboard, cancel_keyboard, map_keyboard, game_mode_keyboard
-from src.config import dp, rooms_collection, logger, bot, admins_collection, users_collection
-from src.utils import validate_code, validate_host
+from src.config import dp, rooms_collection, logger, bot, users_collection, chats_collection
+from src.utils import validate_code, validate_host, get_user, get_chat
 from src.tasks import LIFE_TIME, auto_delete_tasks, schedule_auto_delete, \
     reschedule_auto_delete, cancel_auto_delete
+from src.notifications import send_notification
 
 
 async def cancel(message: types.Message, state: FSMContext):
@@ -82,16 +83,21 @@ async def process_game_mode(message: types.Message, state: FSMContext):
         return
 
     data = await state.get_data()
+
+    user_data = await get_user(message.from_user.id)
+    chat_data = await get_chat(message.chat.id)
+
     room = Room(
         code=data['code'],
         host=data['host'],
         map=Map(data['map']),
         game_mode=GameMode(message.text),
-        owner_id=str(message.from_user.id),
+        owner=user_data,
+        chat=chat_data,
         created_at=datetime.now()
     )
 
-    result = rooms_collection.insert_one(room.to_dict())
+    result = await rooms_collection.insert_one(room.to_dict())
     room_id = result.inserted_id
 
     # Планирование авто-удаления
@@ -110,8 +116,8 @@ async def choose_edit_option(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
         return
 
-    user_id = str(message.from_user.id)
-    room = rooms_collection.find_one({'owner_id': user_id, 'code': message.text})
+    user = await get_user(message.from_user.id)
+    room = await rooms_collection.find_one({'owner': user.to_dict(), 'code': message.text})
 
     if room is None:
         await message.answer(AnswerEnum.not_found.value, reply_markup=default_keyboard, parse_mode=ParseMode.HTML)
@@ -169,7 +175,7 @@ async def edit_code(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     room_id = ObjectId(data['room_id'])
-    rooms_collection.update_one({'_id': room_id}, {'$set': {'code': message.text}})
+    await rooms_collection.update_one({'_id': room_id}, {'$set': {'code': message.text}})
 
     await reschedule_auto_delete(bot, room_id, rooms_collection)
 
@@ -190,7 +196,7 @@ async def edit_host(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     room_id = ObjectId(data['room_id'])
-    rooms_collection.update_one({'_id': room_id}, {'$set': {'host': message.text}})
+    await rooms_collection.update_one({'_id': room_id}, {'$set': {'host': message.text}})
 
     await reschedule_auto_delete(bot, room_id, rooms_collection)
 
@@ -211,7 +217,7 @@ async def edit_map(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     room_id = ObjectId(data['room_id'])
-    rooms_collection.update_one({'_id': room_id}, {'$set': {'map': message.text}})
+    await rooms_collection.update_one({'_id': room_id}, {'$set': {'map': message.text}})
 
     await reschedule_auto_delete(bot, room_id, rooms_collection)
 
@@ -232,7 +238,7 @@ async def edit_game_mode(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     room_id = ObjectId(data['room_id'])
-    rooms_collection.update_one({'_id': room_id}, {'$set': {'game_mode': message.text}})
+    await rooms_collection.update_one({'_id': room_id}, {'$set': {'game_mode': message.text}})
 
     await reschedule_auto_delete(bot, room_id, rooms_collection)
 
@@ -248,13 +254,13 @@ async def confirm_delete(message: types.Message, state: FSMContext):
         return
 
     if message.text == "Да":
-        user_id = str(message.from_user.id)
-        rooms = list(rooms_collection.find({'owner_id': user_id}))
+        user = await get_user(message.from_user.id)
+        rooms = await rooms_collection.find({'owner': user.to_dict()}).to_list(length=None)
 
         for room in rooms:
             room_id = room['_id']
             cancel_auto_delete(room_id)  # Отмена задачи авто-удаления
-            rooms_collection.delete_one({'_id': room_id})
+            await rooms_collection.delete_one({'_id': room_id})
 
         await message.answer(AnswerEnum.room_delite_plus.value, parse_mode=ParseMode.HTML, reply_markup=types.ReplyKeyboardRemove())
         await message.answer(AnswerEnum.choose_code.value, reply_markup=cancel_keyboard, parse_mode=ParseMode.HTML)
@@ -269,13 +275,13 @@ async def process_delete(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
         return
 
-    user_id = str(message.from_user.id)
-    room = rooms_collection.find_one({'owner_id': user_id, 'code': message.text})
+    user = await get_user(message.from_user.id)
+    room = await rooms_collection.find_one({'owner': user.to_dict(), 'code': message.text})
 
     if room:
         room_id = room['_id']
         cancel_auto_delete(room_id)  # Отмена задачи авто-удаления
-        rooms_collection.delete_one({'_id': room_id})
+        await rooms_collection.delete_one({'_id': room_id})
         logger.info(f"Комната: {message.text} с индификатором {room_id} была удалена пользователем {message.from_user.id}")
     else:
         await message.answer(AnswerEnum.invalid_option.value, parse_mode=ParseMode.HTML)
@@ -291,8 +297,8 @@ async def process_update_room(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
         return
 
-    user_id = str(message.from_user.id)
-    room = rooms_collection.find_one({'owner_id': user_id, 'code': message.text})
+    user = await get_user(message.from_user.id)
+    room = await rooms_collection.find_one({'owner': user.to_dict(), 'code': message.text})
 
     if not room:
         await message.answer(AnswerEnum.not_found.value, reply_markup=default_keyboard, parse_mode=ParseMode.HTML)
@@ -320,23 +326,21 @@ async def process_add_admin(message: types.Message, state: FSMContext):
         await state.set_state(AdminState.add_admin)
         return
 
-    admin = Admin(
-        user_id=int(message.text)
-    )
+    user = await get_user(int(message.text))
 
-    if admins_collection.find_one({'user_id': admin.user_id}):
+    if user.is_admin:
         await message.answer("Этот пользователь уже является администратором.", reply_markup=default_keyboard)
     else:
-        admins_collection.insert_one(admin.to_dict())
-        await message.answer(f"Пользователь с id <code>{admin.user_id}</code> назначен администратором.",
+        await users_collection.update_one(user.to_dict(), {'$set': {"is_admin": True}})
+        await message.answer(f"Пользователь с id <code>{user.user_id}</code> назначен администратором.",
                              parse_mode=ParseMode.HTML,
                              reply_markup=default_keyboard)
     await state.clear()
 
 
-async def remove_admin(user_id: int):
-    result = admins_collection.delete_one({'user_id': user_id})
-    return result.deleted_count > 0
+async def remove_admin(user: User):
+    result = await users_collection.update_one(user.to_dict(), {'$set': {"is_admin": False}})
+    return result.matched_count > 0
 
 
 @dp.message(AdminState.del_admin)
@@ -349,16 +353,14 @@ async def process_remove_admin(message: types.Message, state: FSMContext):
         await state.set_state(AdminState.del_admin)
         return
 
-    admin = Admin(
-        user_id=int(message.text)
-    )
+    user = await get_user(int(message.text))
 
-    if await remove_admin(admin.user_id):
-        await message.reply(f"Пользователь с id <code>{admin.user_id}</code> удален из администраторов.",
+    if await remove_admin(user):
+        await message.reply(f"Пользователь с id <code>{user.user_id}</code> удален из администраторов.",
                             reply_markup=default_keyboard,
                             parse_mode=ParseMode.HTML)
     else:
-        await message.reply(f"Пользователь с id <code>{admin.user_id}</code> не найден в списке администраторов.",
+        await message.reply(f"Пользователь с id <code>{user.user_id}</code> не найден в списке администраторов.",
                             reply_markup=default_keyboard,
                             parse_mode=ParseMode.HTML)
     await state.clear()
@@ -369,12 +371,12 @@ async def process_admin_delete_room(message: types.Message, state: FSMContext):
     if await is_press_cancel(message, state):
         return
 
-    room = rooms_collection.find_one({'code': message.text})
+    room = await rooms_collection.find_one({'code': message.text})
 
     if room:
         room_id = room['_id']
         cancel_auto_delete(room_id)  # Отмена задачи авто-удаления
-        rooms_collection.delete_one({'_id': room_id})
+        await rooms_collection.delete_one({'_id': room_id})
         logger.info(f"Комната: {message.text} с индификатором {room_id} была удалена пользователем {message.from_user.id}")
     else:
         await message.answer(AnswerEnum.invalid_option.value, parse_mode=ParseMode.HTML)
@@ -396,9 +398,9 @@ async def process_broadcast_text(message: types.Message, state: FSMContext):
         return
 
     # Отправляем всем пользователям, которые зарегистрировались в боте
-    for user in users_collection.find():
-        chat_id = user['chat_id']
-        await bot.send_message(chat_id, message.text)
+    async for chat in chats_collection.find():
+        chat = Chat.from_dict(chat)
+        await send_notification(bot, chat.chat_id, message.text)
 
     await state.clear()
     await message.reply("Сообщения были успешно отправлены всем пользователям бота", reply_markup=default_keyboard)

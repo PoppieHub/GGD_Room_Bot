@@ -6,17 +6,15 @@ from aiogram.fsm.context import FSMContext
 
 from src.controller.handlers.states import AdminState
 from src.utils import get_content_file
-from src.config import dp, admins_collection, logger, ADMIN_ID, rooms_collection
+from src.config import dp, logger, ADMIN_ID, rooms_collection, users_collection
 from src.keyboards import default_keyboard, cancel_keyboard
-from src.models import AnswerEnum, Admin
+from src.models import AnswerEnum, User
 
 
 async def is_admin(user_id: int):
-    admin_data = admins_collection.find_one({'user_id': user_id})
+    admin_data = await users_collection.find_one({'user_id': user_id})
 
-    logger.info(f"Searching for user_id {user_id}, found: {admin_data}")
-
-    if admin_data:
+    if User.from_dict(admin_data).is_admin:
         return True
 
     return False
@@ -56,14 +54,14 @@ async def add_admin(message: types.Message, state: FSMContext):
 @dp.message(Command("list_admins"))
 @admin_required
 async def list_admins(message: types.Message):
-    admins_data = admins_collection.find()
-
     output = "<b>Список администраторов:</b>\n\n"
-    for i, admin_data in enumerate(admins_data, start=1):
-        admin = Admin.from_dict(admin_data)
+    i = 1
+    async for users_data in users_collection.find({'is_admin': True}):
+        admin = User.from_dict(users_data)
         output += (
             f"{i} <code>{admin.user_id}</code>\n"
         )
+        i += 1
 
     await message.answer(output, parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
 
@@ -83,7 +81,8 @@ async def del_admin(message: types.Message, state: FSMContext):
 @dp.message(Command("admin_del"))
 @admin_required
 async def admin_delete_room(message: types.Message, state: FSMContext):
-    rooms = list(rooms_collection.find())
+    rooms_cursor = rooms_collection.find()
+    rooms = await rooms_cursor.to_list(length=None)
 
     if not rooms:
         await message.answer(AnswerEnum.not_found.value, parse_mode=ParseMode.HTML)

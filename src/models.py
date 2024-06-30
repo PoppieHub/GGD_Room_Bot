@@ -48,23 +48,59 @@ class AnswerEnum(Enum):
     choose_edit = "Выберите что изменить:"
     choose_room = "Выберите комнату:"
     info_added_room = "Комната добавлена успешно!"
-    not_found = "Увы... Нет подходящей румы 😢"
-    not_found_rooms = "Упс...\n\nНет опубликованных рум 😢"
+    not_found = "Увы... Нет подходящей комнаты 😢"
+    not_found_rooms = "Упс...\n\nНет опубликованных комнат 😢"
     success_edit = "Изменения приняты!"
-    error_edit = "Изменения не приянты, попробуй что-то исправить 😢"
+    error_edit = "Изменения не приняты, попробуйте что-то исправить 😢"
     room_delite = "Комната удалена."
     room_delite_plus = "Комната удалена.\n\nТеперь вы можете добавить новую."
     invalid_option = "Пожалуйста, выберите один из предложенных вариантов или нажмите 'Отмена'."
     you_dont_have_root = "У вас нет прав для использования этой команды."
 
 
+class User:
+    def __init__(self, user_id: int, is_admin: bool = False):
+        self.user_id = user_id
+        self.is_admin = is_admin
+
+    def to_dict(self):
+        return {
+            'user_id': self.user_id,
+            'is_admin': self.is_admin
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            user_id=data['user_id'],
+            is_admin=data['is_admin'],
+        )
+
+
+class Chat:
+    def __init__(self, chat_id: int):
+        self.chat_id = chat_id
+
+    def to_dict(self):
+        return {
+            'chat_id': self.chat_id
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            chat_id=data['chat_id']
+        )
+
+
 class Room:
-    def __init__(self, code: str, host: str, map: Map, game_mode: GameMode, owner_id: str, created_at=None):
+    def __init__(self, code: str, host: str, map: Map, game_mode: GameMode, owner: User, chat: Chat, created_at=None):
         self.code = code.upper().strip()
         self.host = host.strip()
         self.map = map
         self.game_mode = game_mode
-        self.owner_id = owner_id
+        self.owner = owner
+        self.chat = chat
         self.created_at = created_at or datetime.now()
 
     def to_dict(self):
@@ -73,7 +109,8 @@ class Room:
             'host': self.host,
             'map': self.map.value,
             'game_mode': self.game_mode.value,
-            'owner_id': self.owner_id,
+            'owner': self.owner.to_dict(),
+            'chat': self.chat.to_dict(),
             'created_at': self.created_at
         }
 
@@ -84,22 +121,7 @@ class Room:
             host=data['host'],
             map=Map(data['map']),
             game_mode=GameMode(data['game_mode']),
-            owner_id=data['owner_id'],
+            owner=User.from_dict(data['owner']),
+            chat=Chat.from_dict(data['chat']),
             created_at=data['created_at']
-        )
-
-
-class Admin:
-    def __init__(self, user_id: int):
-        self.user_id = user_id
-
-    def to_dict(self):
-        return {
-            'user_id': self.user_id
-        }
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(
-            user_id=data['user_id']
         )
