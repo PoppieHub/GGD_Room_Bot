@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from src.config import dp, rooms_collection
 from src.controller.handlers.states import RoomState
 from src.keyboards import default_keyboard, cancel_keyboard, create_keyboard, get_subscribe_keyboard
-from src.utils import get_content_file, get_user, get_chat, update_user_subscriptions
+from src.utils import get_content_file, get_user, get_chat, update_user_subscriptions, update_user_rating
 from src.models import Room, AnswerEnum, QueryCommand
 
 
@@ -58,6 +58,18 @@ async def unsubscribe_room(callback_query: types.CallbackQuery):
     await subscribe_management(callback_query, False)
 
 
+@dp.callback_query(F.data.startswith(f"{QueryCommand.like.value}_"))
+async def like_room(callback_query: types.CallbackQuery):
+    await update_user_rating(callback_query.from_user.id, callback_query.data.split("_")[1], True)
+    await callback_query.answer("Ваша реакция учтена")
+
+
+@dp.callback_query(F.data.startswith(f"{QueryCommand.dislike.value}_"))
+async def dislike_room(callback_query: types.CallbackQuery):
+    await update_user_rating(callback_query.from_user.id, callback_query.data.split("_")[1], False)
+    await callback_query.answer("Ваша реакция учтена")
+
+
 @dp.message(Command("list"))
 async def list_rooms_command(message: types.Message):
     await list_rooms(message)
@@ -79,7 +91,12 @@ async def list_rooms(message: types.Message):
     async for room_data in rooms_collection.find():
         room = Room.from_dict(room_data)
         is_subscribed = chat.chat_id in [chat_item.chat_id for chat_item in room.owner.subscribers]
-        output = "<i>Рейтинг: <b>Пока недоступен</b></i>\n\n"
+
+        # Подсчет лайков и дизлайков
+        likes = sum(1 for rating in room.owner.rating if rating.rating)
+        dislikes = sum(1 for rating in room.owner.rating if not rating.rating)
+
+        output = f"<i>Рейтинг: 👍 {likes} / 👎 {dislikes}</i>\n\n"
         output += (
             f"                         ╭    🚀  {room.map.value}\n"
             f"<code>{room.code}</code>       --¦     👑  <b>{room.host}</b>\n"

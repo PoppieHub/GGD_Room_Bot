@@ -28,6 +28,8 @@ def get_subscribe_keyboard(room: Room, is_subscribed):
 
     return types.InlineKeyboardMarkup(
         inline_keyboard=[
-            [types.InlineKeyboardButton(text=button_text, callback_data=f"{query_text.lower()}_{room.code}")]
+            [types.InlineKeyboardButton(text=button_text, callback_data=f"{query_text.lower()}_{room.code}")],
+            [types.InlineKeyboardButton(text="👍", callback_data=f"{QueryCommand.like.value.lower()}_{room.code}"),
+             types.InlineKeyboardButton(text="👎", callback_data=f"{QueryCommand.dislike.value.lower()}_{room.code}")]
         ]
     )

@@ -61,6 +61,8 @@ class AnswerEnum(Enum):
 class QueryCommand(Enum):
     subscribe = "подписаться"
     unsubscribe = "отписаться"
+    like = "like"
+    dislike = "dislike"
 
 
 class Chat:
