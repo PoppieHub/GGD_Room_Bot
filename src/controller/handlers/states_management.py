@@ -109,6 +109,14 @@ async def process_game_mode(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(AnswerEnum.info_added_room.value, reply_markup=default_keyboard, parse_mode=ParseMode.HTML)
 
+    # Отправляем уведомления всем подписчикам
+    for chat in user_data.subscribers:
+        await send_notification(bot, chat.chat_id, (
+            f"🔔 <b>Уведомление об добавлении комнаты</b> 🔔\n\n"
+            f"Пользователь с ником <b>{room.host}</b> опубликовал комнату с кодом: <code>{room.code}</code>\n\n"
+            f"Вы получили это уведомление, потому что вы подписаны на обновления этого пользователя"
+        ))
+
 
 # Обработчики для редактирования комнаты
 @dp.message(RoomState.edit)
@@ -176,6 +184,8 @@ async def edit_code(message: types.Message, state: FSMContext):
     data = await state.get_data()
     room_id = ObjectId(data['room_id'])
     await rooms_collection.update_one({'_id': room_id}, {'$set': {'code': message.text}})
+    room_data = await rooms_collection.find_one({'_id': room_id})
+    room = Room.from_dict(room_data)
 
     await reschedule_auto_delete(bot, room_id, rooms_collection)
 
@@ -183,6 +193,14 @@ async def edit_code(message: types.Message, state: FSMContext):
     await message.answer(AnswerEnum.success_edit.value, reply_markup=default_keyboard, parse_mode=ParseMode.HTML)
 
     logger.info(f"Поле код комнаты {room_id} было изменено пользователем {message.from_user.id} на {message.text}")
+
+    # Отправляем уведомления всем подписчикам
+    for chat in room.owner.subscribers:
+        await send_notification(bot, chat.chat_id, (
+            f"🔔 <b>Уведомление об изменении комнаты</b> 🔔\n\n"
+            f"Пользователь с ником <b>{room.host}</b> изменил код: <code>{room.code}</code>\n\n"
+            f"Вы получили это уведомление, потому что вы подписаны на обновления этого пользователя"
+        ))
 
 
 @dp.message(RoomState.edit_host)

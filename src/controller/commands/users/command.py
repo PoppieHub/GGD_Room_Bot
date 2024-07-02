@@ -1,3 +1,5 @@
+import logging
+
 from aiogram.filters import Command, CommandStart
 from aiogram.enums import ParseMode
 from aiogram import types, F
@@ -5,9 +7,9 @@ from aiogram.fsm.context import FSMContext
 
 from src.config import dp, rooms_collection
 from src.controller.handlers.states import RoomState
-from src.keyboards import default_keyboard, cancel_keyboard, create_keyboard
-from src.utils import get_content_file, get_user, get_chat
-from src.models import Room, AnswerEnum
+from src.keyboards import default_keyboard, cancel_keyboard, create_keyboard, get_subscribe_keyboard
+from src.utils import get_content_file, get_user, get_chat, update_user_subscriptions
+from src.models import Room, AnswerEnum, QueryCommand
 
 
 @dp.message(Command("start"))
@@ -28,6 +30,34 @@ async def rules(message: types.Message):
     await message.answer(await get_content_file('rules_2'), parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
 
 
+async def subscribe_management(callback_query: types.CallbackQuery, subscribe_action):
+    room = await rooms_collection.find_one({"code": callback_query.data.split("_")[1]})
+    chat = await get_chat(callback_query.message.chat.id)
+
+    if room is None:
+        await callback_query.answer("Запись больше не акутальна, я не смогу провести действие")
+        return
+
+    room = Room.from_dict(room)
+
+    await update_user_subscriptions(room.owner, chat, room.code, subscribe_action)
+
+    if subscribe_action:
+        await callback_query.answer(f"Вы подписались на обновления хоста с ником {room.host}")
+    else:
+        await callback_query.answer(f"Вы отписались от обновлений хоста с ником {room.host}")
+
+
+@dp.callback_query(F.data.startswith(f"{QueryCommand.subscribe.value}_"))
+async def subscribe_room(callback_query: types.CallbackQuery):
+    await subscribe_management(callback_query, True)
+
+
+@dp.callback_query(F.data.startswith(f"{QueryCommand.unsubscribe.value}_"))
+async def unsubscribe_room(callback_query: types.CallbackQuery):
+    await subscribe_management(callback_query, False)
+
+
 @dp.message(Command("list"))
 async def list_rooms_command(message: types.Message):
     await list_rooms(message)
@@ -40,27 +70,23 @@ async def list_rooms_text(message: types.Message):
 
 async def list_rooms(message: types.Message):
     rooms_count = await rooms_collection.count_documents({})
+    chat = await get_chat(message.chat.id)
 
     if rooms_count == 0:
         await message.answer(AnswerEnum.not_found_rooms.value, parse_mode=ParseMode.HTML)
         return
 
-    output = "<b>Румы, где ты можешь поиграть:</b>\n\n"
-
-    i = 1
     async for room_data in rooms_collection.find():
         room = Room.from_dict(room_data)
+        is_subscribed = chat.chat_id in [chat_item.chat_id for chat_item in room.owner.subscribers]
+        output = "<i>Рейтинг: <b>Пока недоступен</b></i>\n\n"
         output += (
-            f"                           ╭    🚀  {room.map.value}\n"
-            f"{i:<3} <code>{room.code}</code>       --  👑    {room.host}\n"
-            f"                           ╰   🎲   {room.game_mode.value}\n\n\n"
+            f"                         ╭    🚀  {room.map.value}\n"
+            f"<code>{room.code}</code>       --¦     👑  <b>{room.host}</b>\n"
+            f"                         ╰    🎲  {room.game_mode.value}"
         )
-        i += 1
-
-    output += "Приятной игры 🙂\n\n <span class='tg-spoiler'>И не будь абобой 😉</span>"
-
-    await message.answer(output, parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
-    await get_chat(message.chat.id)
+        await message.answer(output, parse_mode=ParseMode.HTML,
+                             reply_markup=get_subscribe_keyboard(room, is_subscribed))
 
 
 @dp.message(Command("add"))

@@ -58,23 +58,9 @@ class AnswerEnum(Enum):
     you_dont_have_root = "У вас нет прав для использования этой команды."
 
 
-class User:
-    def __init__(self, user_id: int, is_admin: bool = False):
-        self.user_id = user_id
-        self.is_admin = is_admin
-
-    def to_dict(self):
-        return {
-            'user_id': self.user_id,
-            'is_admin': self.is_admin
-        }
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(
-            user_id=data['user_id'],
-            is_admin=data['is_admin'],
-        )
+class QueryCommand(Enum):
+    subscribe = "подписаться"
+    unsubscribe = "отписаться"
 
 
 class Chat:
@@ -88,8 +74,63 @@ class Chat:
 
     @classmethod
     def from_dict(cls, data):
+        if data is None:
+            raise ValueError("Cannot create Chat from None")
+
         return cls(
             chat_id=data['chat_id']
+        )
+
+
+class Rating:
+    def __init__(self, rating: bool, user_id: int):
+        self.rating = rating
+        self.user_id = user_id
+
+    def to_dict(self):
+        return {
+            'rating': self.rating,
+            'user_id': self.user_id
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        if data is None:
+            raise ValueError("Cannot create Rating from None")
+
+        return cls(
+            rating=data['rating'],
+            user_id=data['user_id']
+        )
+
+
+class User:
+    def __init__(self, user_id: int, is_admin: bool = False, subscribers=None, rating=None):
+        self.user_id = user_id
+        self.is_admin = is_admin
+        self.subscribers = subscribers or []
+        self.rating = rating or []
+
+    def to_dict(self):
+        return {
+            'user_id': self.user_id,
+            'is_admin': self.is_admin,
+            'subscribers': [subscriber.to_dict() for subscriber in self.subscribers],
+            'rating': [rating_item.to_dict() for rating_item in self.rating],
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        if data is None:
+            raise ValueError("Cannot create User from None")
+
+        subscribers = [Chat.from_dict(subscriber) for subscriber in data.get('subscribers', [])]
+        rating = [Rating.from_dict(rating_item) for rating_item in data.get('rating', [])]
+        return cls(
+            user_id=data['user_id'],
+            is_admin=data['is_admin'],
+            subscribers=subscribers,
+            rating=rating
         )
 
 
@@ -116,6 +157,9 @@ class Room:
 
     @classmethod
     def from_dict(cls, data):
+        if data is None:
+            raise ValueError("Cannot create Rooms from None")
+
         return cls(
             code=data['code'],
             host=data['host'],

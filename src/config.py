@@ -23,7 +23,10 @@ bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-mongo_client = AsyncIOMotorClient(dotenv_values(".env")["MONGO_CLIENT"])
+mongo_client = AsyncIOMotorClient(
+    dotenv_values(".env")["MONGO_CLIENT"],
+    tlsAllowInvalidCertificates=True
+)
 db = mongo_client['ggd']
 
 rooms_collection = db['rooms']

@@ -1,4 +1,4 @@
-from src.config import users_collection, chats_collection
+from src.config import users_collection, chats_collection, rooms_collection
 from src.models import User, Chat
 
 
@@ -42,3 +42,28 @@ async def get_chat(chat_id: int) -> Chat:
         chat = await chats_collection.find_one({'chat_id': chat_id})
 
     return Chat.from_dict(chat)
+
+
+async def update_user_subscriptions(user, chat: Chat, room_code, subscribe=True):
+    if subscribe:
+        # Проверяем, есть ли уже такой чат в подписках пользователя
+        if any(sub.chat_id == chat.chat_id for sub in user.subscribers):
+            return
+
+        user.subscribers.append(chat)
+    else:
+        # Удаляем чат из подписчиков пользователя
+        user.subscribers = [sub for sub in user.subscribers if sub.chat_id != chat.chat_id]
+
+    # Обновляем подписчиков пользователя в базе данных
+    await users_collection.update_one(
+        {'user_id': user.user_id},
+        {'$set': {'subscribers': [sub.to_dict() for sub in user.subscribers]}}
+    )
+
+    # Обновляем подписчиков владельца комнаты в базе данных
+    await rooms_collection.update_one(
+        {'code': room_code},
+        {'$set': {'owner.subscribers': [sub.to_dict() for sub in user.subscribers]}}
+    )
+
