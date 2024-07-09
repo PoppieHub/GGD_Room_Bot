@@ -4,7 +4,7 @@ from src.models import User, Chat, Rating, Room
 
 # Валидация кода комнаты
 def validate_code(text):
-    return len(text) == 7 and text.isascii() and text.isalnum()
+    return len(text) == 6 and text.isascii() and text.isalnum()
 
 
 # Валидация имени хоста

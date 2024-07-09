@@ -3,30 +3,19 @@ from datetime import datetime
 
 
 class Map(Enum):
-    THE_CARNIVAL = "Карнавал"
-    EAGLETON_SPRINGS = "Иглтон Спрингс"
-    BLOODHAVEN = "Кровавая Гавань"
-    ANCIENT_SANDS = "Древняя Пустыня"
-    THE_BASEMENT = "Подвал"
-    JUNGLE_TEMPLE = "Храм Джунглей"
-    GOOSECHAPEL = "Гусчэпл"
-    MALLARD_MANOR = "Усадьба Крякв"
-    NEXUS_COLONY = "Колония Нексус"
-    BLACK_SWAN = "Черный Лебедь"
-    SS_MOTHER_GOOSE = "К.К. Матушка Гусыня"
+    THE_SKELD = "The Skeld"
+    MIRA_HQ = "MIRA HQ"
+    POLUS = "Polus"
+    THE_AIRSHIP = "The Airship"
+    THE_FUNGLES = "The Fungle"
     OTHER = "Разные"
 
 
 class GameMode(Enum):
-    CLASSIC = "Classic"
-    DRAFT = "Draft"
-    CORRUPTION_MODE = "Corruption Mode"
-    GOOSE_HUNT = "Goose Hunt"
-    DINE_AND_DASH = "Dine and Dash"
-    TRICK_OR_TREAT = "Trick or Treat"
-    HANGING_OUT = "Hanging Out"
-    TASTES_LIKE_CHICKEN = "Tastes Like Chicken"
-    WOW_AND_LOCK = "Ух и ищи"
+    CLASSIC = "Классика"
+    CLASSIC_PLUS = "Классика+"
+    HIDE_N_SEEK = "Прятки"
+    MODS = "Моды"
     OTHER = "Разные"
 
 
@@ -39,7 +28,7 @@ class ChooseEditEnum(Enum):
 
 class AnswerEnum(Enum):
     we_have_cancel = "У нас отмена!"
-    error_code = "<b>Ошибка при вводе.</b> \n\nПожалуйста, введите 7-значный код комнаты"
+    error_code = "<b>Ошибка при вводе.</b> \n\nПожалуйста, введите 6-значный код комнаты"
     error_host = "<b>Ошибка при вводе.</b> \n\nПожалуйста, введите имя хоста (не более 15 символов):"
     choose_code = "Введите код комнаты"
     choose_host = "Введите имя хоста:"

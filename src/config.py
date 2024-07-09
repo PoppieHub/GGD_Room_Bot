@@ -27,7 +27,7 @@ mongo_client = AsyncIOMotorClient(
     dotenv_values(".env")["MONGO_CLIENT"],
     tlsAllowInvalidCertificates=True
 )
-db = mongo_client['ggd']
+db = mongo_client['amongUs']
 
 rooms_collection = db['rooms']
 users_collection = db['users']
