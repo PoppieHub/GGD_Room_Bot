@@ -21,6 +21,8 @@ services:
   ggd_bot_db:
     container_name: ggd_bot_db
     image: mongo
+    ports:
+      - "27017:27017"
     volumes:
       - ./data:/data/db
     restart: always
