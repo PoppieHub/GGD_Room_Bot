@@ -70,6 +70,17 @@ async def dislike_room(callback_query: types.CallbackQuery):
     await callback_query.answer("Ваша реакция учтена")
 
 
+@dp.message(Command("get_count_sub"))
+async def count_sub(message: types.Message):
+    user = await get_user(message.chat.id)
+    count = 0
+
+    if user.subscribers:
+        count = len(user.subscribers)
+
+    await message.reply(f"У вас подписчиков: <b>{count}</b>", parse_mode=ParseMode.HTML)
+
+
 @dp.message(Command("list"))
 async def list_rooms_command(message: types.Message):
     await list_rooms(message)
