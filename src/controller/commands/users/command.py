@@ -72,7 +72,7 @@ async def dislike_room(callback_query: types.CallbackQuery):
 
 @dp.message(Command("get_profile"))
 async def get_profile(message: types.Message):
-    user = await get_user(message.chat.id)
+    user = await get_user(message.from_user.id)
     sub_count = len(user.subscribers) if user.subscribers else 0
     rating_count = len(user.rating) if user.rating else 0
     likes = sum(1 for rating in user.rating if rating.rating)
