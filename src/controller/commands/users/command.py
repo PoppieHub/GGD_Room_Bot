@@ -70,15 +70,20 @@ async def dislike_room(callback_query: types.CallbackQuery):
     await callback_query.answer("Ваша реакция учтена")
 
 
-@dp.message(Command("get_count_sub"))
-async def count_sub(message: types.Message):
+@dp.message(Command("get_profile"))
+async def get_profile(message: types.Message):
     user = await get_user(message.chat.id)
-    count = 0
+    sub_count = len(user.subscribers) if user.subscribers else 0
+    rating_count = len(user.rating) if user.rating else 0
+    likes = sum(1 for rating in user.rating if rating.rating)
+    dislikes = sum(1 for rating in user.rating if not rating.rating)
 
-    if user.subscribers:
-        count = len(user.subscribers)
-
-    await message.reply(f"У вас подписчиков: <b>{count}</b>", parse_mode=ParseMode.HTML)
+    await message.reply((
+        "<b>Информация по вашему профилю:</b>\n\n"
+        f"<i>Подписано чатов на вас</i>: <b>{sub_count}</b>\n"
+        f"<i>Пользователей, оценивших вас</i>: <b>{rating_count}</b>\n\n"
+        f"👍 <b>{likes}</b> / 👎 <b>{dislikes}</b>"
+    ), parse_mode=ParseMode.HTML)
 
 
 @dp.message(Command("list"))
