@@ -83,7 +83,7 @@ async def get_profile(message: types.Message):
         f"<i>Подписано чатов на вас</i>: <b>{sub_count}</b>\n"
         f"<i>Пользователей, оценивших вас</i>: <b>{rating_count}</b>\n\n"
         f"👍 <b>{likes}</b> / 👎 <b>{dislikes}</b>"
-    ), parse_mode=ParseMode.HTML)
+    ), parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
 
 
 @dp.message(Command("list"))
@@ -101,7 +101,7 @@ async def list_rooms(message: types.Message):
     chat = await get_chat(message.chat.id)
 
     if rooms_count == 0:
-        await message.answer(AnswerEnum.not_found_rooms.value, parse_mode=ParseMode.HTML)
+        await message.answer(AnswerEnum.not_found_rooms.value, parse_mode=ParseMode.HTML, reply_markup=default_keyboard)
         return
 
     async for room_data in rooms_collection.find():
@@ -120,6 +120,8 @@ async def list_rooms(message: types.Message):
         )
         await message.answer(output, parse_mode=ParseMode.HTML,
                              reply_markup=get_subscribe_keyboard(room, is_subscribed))
+
+    await message.answer("Приятной игры!", reply_markup=default_keyboard)
 
 
 @dp.message(Command("add"))
