@@ -1,6 +1,6 @@
 from src.tasks import restore_auto_deletion_tasks
 
-from src.controller.include import *
+from src.controller import *
 
 
 # Запуск бота
